@@ -1,0 +1,133 @@
+Last modified: 4th Dec. 2017 by A.Taruya 
+
+
+************************
+****    Overview    ****
+************************
+
+This package contains the codes to compute A and B terms for the TNS model of redshift-space power spectrum (Taruya, Nishimichi & Saito 2010). The codes especially provide the data used in the paper by Taruya, Nishimichi & Bernardeau (2013), where the multi-point propagator expansion is applied to the TNS model. Thus, the data computed with this package are at two-loop order, and can be coherently and consistently combined with the density and velocity-divergence power spectrum at 2-loop order of the RegPT code by Taruya, Bernardeau, Nishimichi & Codis (2012).
+
+
+Refs:
+Taruya, Nishimichi & Saito, Phys.Rev.D82, 063522 (2010)
+Taruya, Bernardeau, Nishimichi & Codis, Phys.Rev.D86, 103528 (2012)
+Taruya, Nishimichi & Bernardeau, Phys.Rev.D87, 083509 (2013)
+
+
+************************
+**** Code structure ****
+************************
+
+The main codes (fortran) are
+
+A_term_I.f
+A_term_II.f
+B_term.f 
+
+Other files are subroutines. To check their file dependencies, you may read Makefile.  Note that the code for A term involves two types of integration technique, and it is divided into two files.
+
+
+************************
+****      Setup     ****
+************************
+
+A part of the codes (A_term_II.f) uses the library for Monte Carlo integration, CUBA. Before compiling the code, the library package cuba-1.5 needs to be downloaded from http://www.feynarts.de/cuba, and the file, libcuba.a, have to be re-built, compatible with the architecture of user's platform (note that the version higher than 1.5 will not work well). This can be done in the directory /Cuba-1.5, and just type
+
+./configure
+
+and next 
+
+make lib
+
+Then, the library file, libcuba.a, will be created. After placing the library file libcuba.a at the same directory of the main codes, you can compile the main codes using Makefile of this package. The codes can be compiled with gfortran or ifort:
+
+make A_term_I
+make A_term_II
+make B_term
+
+
+************************
+****  Running codes ****
+************************
+
+
+To run the code, simply type
+
+./A_term_I.exe
+./A_term_II.exe
+./B_term.exe
+
+Then, just follow the instructions. The code will ask you for linear power spectrum data, which is assumed to be tabulated in two columns (i.e., wavenumber [h/Mpc], power spectrum [(Mpc/h)^3]). 
+
+
+Note that while the computation of B term can be done quickly, the required time for computing A term is typically of 'few hours' without parallelization, and you will need patient. 
+
+
+************************
+****  Output files  ****
+************************
+
+
+Each of the main codes produce single output file.
+
+- The code, A_term_I.exe, produces pkRegPT_Aterm_I.dat. The structure of the data is as follows (in each line):  
+
+ k,  pk_A11a,  pk_A12a,  pk_A22a,  pk_A23a,  pk_A33a
+
+
+- The code, A_term_II.exe, produces pkRegPT_Aterm_II.dat. The structure of the data is the same as given above: 
+
+ k,  pk_A11b,  pk_A12b,  pk_A22b,  pk_A23b,  pk_A33b
+
+
+- The code, B_term.exe, produces pkRegPT_Bterm.dat, which is tabulated in each line as follows: 
+
+ k,  pk_B12,   pk_B13,   pk_B14,   pk_B22,   pk_B23,   pk_B24,   pk_B33,   pk_B34,   pk_B44
+
+
+Note that k is in units of h/Mpc, while pk_A??? or pk_B??? are in units of (Mpc/h)^3.
+
+In computing the TNS power spectrum described below, the data given in the files, pkRegPT_Aterm_I.dat and pkRegPT_Aterm_II.dat, need to be combined. That is,
+
+pk_A11 = pk_A11a + pk_A11b
+pk_A12 = pk_A12a + pk_A12b
+pk_A22 = pk_A22a + pk_A22b
+pk_A23 = pk_A23a + pk_A23b
+pk_A33 = pk_A33a + pk_A33b
+
+You can do it by yourself with perl or awk command. Otherwise, you can use the supplemental code, sum_pkRegPT_Aterm.f, which quickly creates the final product, pkRegPT_Aterm.dat: 
+
+./sum_pkRegPT_Aterm.exe pkRegPT_Aterm_I.dat pkRegPT_Aterm_II.dat
+
+
+***************************************
+**** Computing TNS power spectrum  ****
+***************************************
+
+
+Provided the data for A and B terms with this package, the only what you need is the auto- and cross-power spectra of density and velocity-divergence field, which can be supplied by RegPT code (http://www2.yukawa.kyoto-u.ac.jp/~atsushi.taruya/regpt_code.html). Denoting respectively the auto-power spectra of density and velocity-divergence by pk11 and pk22, and their cross-power spectrum by pk12, the TNS model of the redshift-space power spectrum is expressed as follows:
+
+      pkred_TNS(k, mu; f) = dexp( -(b*beta*k*mu*sigmav)**2 ) 
+    	 * [ pk_kaiser(k, mu; f) + pk_A_term(k, mu; f) + pk_B_term(k, mu; f) ],
+
+where b is the linear bias parameter, and beta is given by f/b (f is linear growth rate). The mu is the directional cosine between wave vector and line-of-sight direction. The sigmav is the free parameter which controls the strength of Fingers-of-God damping. The three power spectra, pk_kaiser, pk_A_term, and pk_B_term, are evaluated with this package and RegPT code as follows:
+
+
+      pk_kaiser = b**2 * (pk11 + 2.d0*beta*mu**2*pk12 + beta**2*mu**4*pk22)
+
+      pk_A_term = b**3 * ( beta * mu**2*pk_A11 + beta**2*(mu**2*pk_A12 
+      		+ mu**4*pk_A22)  + beta**3*(mu**4*pk_A23 + mu**6*pk_A33) )
+
+      pk_B_term = b**4 * ( mu**2 * (beta**2*pk_B12 + beta**3*pk_B13 
+      	       + beta**4*pk_B14) + mu**4 * (beta**2*pk_B22 + beta**3*pk_B23 
+	       + beta**4*pk_B24) + mu**6 * (beta**3*pk_B33 + beta**4*pk_B34)
+               + mu**8 * beta**4*pk_B44 )
+
+
+***************************************
+****          Conditions           ****
+***************************************
+
+This package is free, and you can redistribute and/or modify it at your own risk. It is distributed in the hope that it will be useful in scientific research, but without any warranty. If you use this package for scientific work, we kindly ask you to cite the paper on this code, i.e., 
+
+Taruya, Nishimichi & Bernardeau, Phys.Rev.D87, 083509 (2013)

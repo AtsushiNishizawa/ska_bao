@@ -1,0 +1,118 @@
+        chisq_min   = 1e30
+        chisqL0_min = 1e30
+        chisqL1_min = 1e30
+        if ( fit_verbose ):
+            fout   = open("chisq_fit.dat", "w")
+            foutL0 = open("chisqL0_fit.dat", "w")
+            foutL1 = open("chisqL1_fit.dat", "w")
+        
+        for ip0 in range(Np0):
+            b0 = 10.**np.random.uniform(b0_min, b0_max, 1)[0]
+            beta = ff/b0
+    
+            for ip1 in range(Np1):
+                
+                if ( fit_FoG ):
+                    #sigv = 10.**np.random.uniform(sigv_min, sigv_max, 1)[0]
+                    sigv = np.random.uniform(sigv_min, sigv_max, 1)[0]
+                else:
+                    sigv = sigv_lin
+
+                if ( model_FoG == "Gauss" ):
+                    DFoG = np.exp(-(kp[:,None]*mu[None,:]*ff*sigv)**2.)
+                elif ( model_FoG == "Lorenz" ):
+                    DFoG = 1./(1.+(kp[:,None]*mu[None,:]*ff*sigv)**2.)
+                else:
+                    DFoG = 1.
+
+                pk_kaiser  = b0**2*(pk11[:,None]+2.0*beta*mu[None,:]**2*pk12[:,None] + beta**2*mu[None,:]**4*pk22[:,None])
+                pk_kaiserL0 = b0**2*pkg0[:,None]*(1+beta*mu[None,:]**2)**2
+                pk_kaiserL1 = b0**2*pkg1[:,None]*(1+beta*mu[None,:]**2)**2
+    
+                pk_Aterm = b0**3*(beta   * mu[None,:]**2*pkA11[:,None]+
+                                  beta**2*(mu[None,:]**2*pkA12[:,None]+mu[None,:]**4*pkA22[:,None])+
+                                  beta**3*(mu[None,:]**4*pkA23[:,None]+mu[None,:]**6*pkA33[:,None]))
+
+                pk_Bterm = b0**4*(mu[None,:]**2*(beta**2*pkB12[:,None] + beta**3*pkB13[:,None] + beta**4*pkB14[:,None]) +
+                                  mu[None,:]**4*(beta**2*pkB22[:,None] + beta**3*pkB23[:,None] + beta**4*pkB24[:,None]) +
+                                  mu[None,:]**6*(beta**3*pkB33[:,None] + beta**4*pkB34[:,None])+
+                                  mu[None,:]**8* beta**4*pkB44[:,None] )
+
+                psL0  = np.dot(L0, (DFoG*(pk_kaiser  +pk_Aterm+pk_Bterm)).T)*dmu
+                psL0L0= np.dot(L0, (DFoG*(pk_kaiserL0+pk_Aterm+pk_Bterm)).T)*dmu
+                psL0L1= np.dot(L0, (DFoG*(pk_kaiserL1)).T)*dmu
+
+                psL2  = np.dot(L2, (DFoG*(pk_kaiser  +pk_Aterm+pk_Bterm)).T)*dmu
+                psL2L0= np.dot(L2, (DFoG*(pk_kaiserL0+pk_Aterm+pk_Bterm)).T)*dmu
+                psL2L1= np.dot(L2, (DFoG*(pk_kaiserL1)).T)*dmu
+
+                psL4  = np.dot(L4, (DFoG*(pk_kaiser  +pk_Aterm+pk_Bterm)).T)*dmu
+                psL4L0= np.dot(L4, (DFoG*(pk_kaiserL0+pk_Aterm+pk_Bterm)).T)*dmu
+                psL4L1= np.dot(L4, (DFoG*(pk_kaiserL1)).T)*dmu
+
+
+                fpsL0  = interp1d(kp, psL0  , kind="linear")
+                fpsL0L0= interp1d(kp, psL0L0, kind="linear")
+                fpsL0L1= interp1d(kp, psL0L1, kind="linear")
+                fpsL2  = interp1d(kp, psL2  , kind="linear")
+                fpsL2L0= interp1d(kp, psL2L0, kind="linear")
+                fpsL2L1= interp1d(kp, psL2L1, kind="linear")
+                fpsL4  = interp1d(kp, psL4  , kind="linear")
+                fpsL4L0= interp1d(kp, psL4L0, kind="linear")
+                fpsL4L1= interp1d(kp, psL4L1, kind="linear")
+
+                mask = kdata <= k_fit_max
+
+                chisq = 0.
+                if ( fit_ps0 ):
+                    chisq += np.sum( (pk0_data[mask]-fpsL0(kdata[mask]))**2 ) / np.sum( (pk0_err[mask])**2 )
+                if ( fit_ps2 ):
+                    chisq += np.sum( (pk2_data[mask]-fpsL2(kdata[mask]))**2 ) / np.sum( (pk2_err[mask])**2 )
+                if ( fit_ps4 ):
+                    chisq += np.sum( (pk4_data[mask]-fpsL4(kdata[mask]))**2 ) / np.sum( (pk4_err[mask])**2 )
+                if ( chisq < chisq_min ):
+                    chisq_min = chisq
+                    b0_best = b0
+                    sigv_best = sigv
+                if ( fit_verbose ):
+                    fout.write("%f %f %f\n"%(b0, sigv, chisq))
+
+                chisqL0 = 0.
+                if ( fit_ps0 ):
+                    chisqL0 += np.sum( (pk0_data[mask]-fpsL0L0(kdata[mask]))**2 ) / np.sum( (pk0_err[mask])**2 )
+                if ( fit_ps2 ):
+                    chisqL0 += np.sum( (pk2_data[mask]-fpsL2L0(kdata[mask]))**2 ) / np.sum( (pk2_err[mask])**2 )
+                if ( fit_ps4 ):
+                    chisqL0 += np.sum( (pk4_data[mask]-fpsL4L0(kdata[mask]))**2 ) / np.sum( (pk4_err[mask])**2 )
+                if ( chisqL0 < chisqL0_min ):
+                    chisqL0_min = chisqL0
+                    b0_bestL0 = b0
+                    sigv_bestL0 = sigv
+                if ( fit_verbose ):
+                    foutL0.write("%f %f %f\n"%(b0, sigv, chisq))
+
+                chisqL1 = 0.
+                if ( fit_ps0 ):
+                    chisqL1 += np.sum( (pk0_data[mask]-fpsL0L1(kdata[mask]))**2 ) / np.sum( (pk0_err[mask])**2 )
+                if ( fit_ps2 ):
+                    chisqL1 += np.sum( (pk2_data[mask]-fpsL2L1(kdata[mask]))**2 ) / np.sum( (pk2_err[mask])**2 )
+                if ( fit_ps4 ):
+                    chisqL1 += np.sum( (pk4_data[mask]-fpsL4L1(kdata[mask]))**2 ) / np.sum( (pk4_err[mask])**2 )
+                if ( chisqL1 < chisqL1_min ):
+                    chisqL1_min = chisqL1
+                    b0_bestL1 = b0
+                    sigv_bestL1 = sigv
+                if ( fit_verbose ):
+                    foutL1.write("%f %f %f\n"%(b0, sigv, chisq))
+
+
+                if ( Np0*Np1 > 784 ):
+                    n = Np0*Np1/784
+                else:
+                    n = 1
+                if ( (ip0*Np1+ip1)%(n) ==  0 ):
+                    sys.stderr.write("%d %d %f %f %f %f %f %f %f\n"%(ip0, ip1, chisq, chisq_min, b0_best, sigv_best, sigv_lin, b0, sigv))
+                    
+
+        if ( fit_verbose ):
+            fout.close()
